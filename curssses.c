@@ -2,11 +2,26 @@
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
-#define DISP_W 60
-#define DISP_H 24
+#define SECOND 1000000
+#define FPS 20
 
-#define HERO_CHAR '@'
+typedef enum
+{
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN,
+} direction;
+
+typedef struct
+{
+    char symbol;
+    int x;
+    int y;
+    direction d;
+} snake;
 
 int main(void)
 {
@@ -15,56 +30,90 @@ int main(void)
     cbreak();
     noecho();
     nonl();
+    nodelay(stdscr, TRUE);
     intrflush(stdscr, FALSE);
     keypad(stdscr, TRUE);
     curs_set(0);
 
-    int hero_x = DISP_W / 2;
-    int hero_y = DISP_H / 2;
-    for (int y = 0; y < DISP_H; ++y)
-    {
-        for (int x = 0; x < DISP_W; ++x)
-        {
-            mvaddch(y, x, '.');
-        }
-    }
-    mvaddch(hero_y, hero_x, HERO_CHAR);
-    printw(" (%d, %d)", hero_x, hero_y);
-    refresh();
+    snake s;
+    s.symbol = 'o';
+    s.x = COLS / 2;
+    s.y = LINES / 2;
 
     int input = 0;
     while (1)
     {
+
         input = getch();
+
         erase();
-        for (int y = 0; y < DISP_H; ++y)
-        {
-            for (int x = 0; x < DISP_W; ++x)
-            {
-                mvaddch(y, x, '.');
-            }
-        }
+
+        printw("Position: (%d, %d) Total: [%d, %d]", s.x, s.y, COLS, LINES);
         switch (input)
         {
             case KEY_LEFT:
+            case 'h':
             {
-                mvaddch(hero_y, --hero_x, HERO_CHAR);
+                s.d = LEFT;
             } break;
             case KEY_RIGHT:
+            case 'l':
             {
-                mvaddch(hero_y, ++hero_x, HERO_CHAR);
+                s.d = RIGHT;
             } break;
             case KEY_UP:
+            case 'k':
             {
-                mvaddch(--hero_y, hero_x, HERO_CHAR);
+                s.d = UP;
             } break;
             case KEY_DOWN:
+            case 'j':
             {
-                mvaddch(++hero_y, hero_x, HERO_CHAR);
+                s.d = DOWN;
             } break;
         }
-        printw(" (%d, %d)", hero_x, hero_y);
+
+        switch (s.d)
+        {
+            case LEFT:
+            {
+                --s.x;
+            } break;
+            case RIGHT:
+            {
+                ++s.x;
+            } break;
+            case UP:
+            {
+                --s.y;
+            } break;
+            case DOWN:
+            {
+                ++s.y;
+            } break;
+        }
+
+        if (s.y == LINES)
+        {
+            s.y = 0;
+        }
+        else if (s.y < 0)
+        {
+            s.y = LINES - 1;
+        }
+        if (s.x == COLS)
+        {
+            s.x = 0;
+        }
+        else if (s.x < 0)
+        {
+            s.x = COLS - 1;
+        }
+
+        mvaddch(s.y, s.x, s.symbol);
+
         refresh();
+        usleep(SECOND / FPS);
     }
 
     clear();
