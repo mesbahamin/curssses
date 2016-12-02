@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 #define SECOND 1000000
-#define FPS 20
+#define FPS 60
 
 typedef enum
 {
@@ -125,8 +125,10 @@ int main(void)
     keypad(stdscr, TRUE);
     curs_set(0);
 
+    bool debug = false;
+
     snake *s = snake_init();
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 50; ++i)
     {
         snake_add_segment(s);
     }
@@ -164,24 +166,34 @@ int main(void)
                 nodelay(stdscr, FALSE);
                 getch();
                 nodelay(stdscr, TRUE);
-            }
+            } break;
+            case 'i':
+            {
+                debug = !debug;
+            } break;
         }
 
         erase();
 
         snake_move(s);
 
-        mvprintw(
-            0, 0,
-            "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)",
-            COLS, LINES, s->length, s->head->x, s->head->y, s->tail->x, s->tail->y);
+        if (debug)
+        {
+            mvprintw(
+                0, 0,
+                "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)",
+                COLS, LINES, s->length, s->head->x, s->head->y, s->tail->x, s->tail->y);
+        }
 
         segment *current = s->head;
         int i = 0;
         while (current != 0)
         {
             mvaddch(current->y, current->x, s->symbol);
-            mvprintw(i+4, 0, "Segment %d (%d, %d)", i+1, current->x, current->y);
+            if (debug)
+            {
+                mvprintw((i%20)+4, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
+            }
             current = current->next;
             i++;
         }
