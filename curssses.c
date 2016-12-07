@@ -21,36 +21,36 @@ typedef enum
     RIGHT,
     UP,
     DOWN,
-} direction;
+} Direction;
 
-typedef struct segment segment;
-struct segment
+typedef struct Segment Segment;
+struct Segment
 {
     int x;
     int y;
-    segment *prev;
-    segment *next;
+    Segment *prev;
+    Segment *next;
 };
 
-typedef struct snake snake;
-struct snake
+typedef struct Snake Snake;
+struct Snake
 {
     char symbol;
-    direction d;
     int length;
-    segment *head;
-    segment *tail;
+    Direction d;
+    Segment *head;
+    Segment *tail;
 };
 
-snake* snake_init()
+Snake* snake_init(void)
 {
-    segment *first = malloc(sizeof(segment));
+    Segment *first = malloc(sizeof(Segment));
     first->x = COLS / 2;
     first->y = LINES / 2;
     first->prev = 0;
     first->next = 0;
 
-    snake *s = malloc(sizeof(snake));
+    Snake *s = malloc(sizeof(Snake));
     s->symbol = 'o';
     s->d = RIGHT;
     s->length = 1;
@@ -60,9 +60,9 @@ snake* snake_init()
     return s;
 }
 
-void snake_add_segment(snake *s)
+void snake_add_segment(Snake *s)
 {
-    segment *new = malloc(sizeof(segment));
+    Segment *new = malloc(sizeof(Segment));
     new->x = s->tail->x;
     new->y = s->tail->y;
     new->prev = s->tail;
@@ -73,10 +73,10 @@ void snake_add_segment(snake *s)
     s->length++;
 }
 
-void snake_move(snake *s)
+void snake_move(Snake *s)
 {
     // move body
-    segment *current = s->tail;
+    Segment *current = s->tail;
     while (current != s->head)
     {
         current->x = current->prev->x;
@@ -123,7 +123,7 @@ void snake_move(snake *s)
     }
 }
 
-uint64_t get_current_time_ms()
+uint64_t get_current_time_ms(void)
 {
     struct timespec current;
     // TODO(amin): Fallback to other time sources when CLOCK_MONOTONIC is unavailable.
@@ -144,23 +144,22 @@ int main(void)
     keypad(stdscr, TRUE);
     curs_set(0);
 
-    bool debug = false;
-
-    snake *s = snake_init();
+    Snake *s = snake_init();
     for (int i = 0; i < 50; ++i)
     {
         snake_add_segment(s);
     }
 
+    bool debug = false;
     int input = 0;
     int updates = 0;
     int frames = 0;
-    int lag = 0;
+    int movements = 0;
+    uint64_t lag = 0;
     uint64_t previous_ms = get_current_time_ms();
 
     while (1)
     {
-        frames++;
         uint64_t current_ms = get_current_time_ms();
         uint64_t elapsed_ms = current_ms - previous_ms;
         previous_ms = current_ms;
@@ -204,19 +203,16 @@ int main(void)
             } break;
         }
 
-
-        // TODO(amin): Test on slow computers.
-        // Have I sufficiently decoupled simulation speed from processor speed?
         while (lag >= MS_PER_UPDATE)
         {
             if (updates % UPDATES_PER_MOVEMENT == 0)
             {
                 snake_move(s);
+                movements++;
             }
             updates++;
             lag -= MS_PER_UPDATE;
         }
-
 
         erase();
 
@@ -224,32 +220,34 @@ int main(void)
         {
             mvprintw(
                 0, 0,
-                "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)\nFrame Time: %dms\nUpdates: %d\nFrames: %d",
-                COLS, LINES, s->length, s->head->x, s->head->y, s->tail->x, s->tail->y, elapsed_ms, updates, frames);
+                "Frame Time: %dms\nLag: %dms\nUpdates: %d\nFrames: %d\nMovements: %d\n"
+                "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)\n",
+                elapsed_ms, lag,
+                updates, frames, movements,
+                COLS, LINES,
+                s->length,
+                s->head->x, s->head->y,
+                s->tail->x, s->tail->y);
         }
 
-        segment *current = s->head;
+        Segment *current = s->head;
         int i = 0;
         while (current != 0)
         {
             mvaddch(current->y, current->x, s->symbol);
             if (debug)
             {
-                mvprintw((i%20)+8, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
+                mvprintw((i%20)+9, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
             }
             current = current->next;
             i++;
         }
 
         refresh();
+        frames++;
         if (elapsed_ms <= MS_PER_FRAME)
         {
-            usleep((MS_PER_FRAME - elapsed_ms) * SECOND);
-        }
-        // TODO(amin): Is this ever needed?
-        else
-        {
-            usleep(MS_PER_FRAME * SECOND);
+            usleep((MS_PER_FRAME - elapsed_ms) * 1000);
         }
     }
 
