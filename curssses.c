@@ -42,6 +42,15 @@ struct Snake
     Segment *tail;
 };
 
+typedef struct Food Food;
+struct Food
+{
+    bool eaten;
+    char symbol;
+    int x;
+    int y;
+};
+
 Snake* snake_init(void)
 {
     Segment *first = malloc(sizeof(Segment));
@@ -123,6 +132,14 @@ void snake_move(Snake *s)
     }
 }
 
+void food_move(Food *f)
+{
+    f->symbol = '#';
+    f->x = rand() % COLS;
+    f->y = rand() % LINES;
+    f->eaten = false;
+}
+
 uint64_t get_current_time_ms(void)
 {
     struct timespec current;
@@ -144,11 +161,12 @@ int main(void)
     keypad(stdscr, TRUE);
     curs_set(0);
 
+    srand((unsigned int)time(0));
+
     Snake *s = snake_init();
-    for (int i = 0; i < 50; ++i)
-    {
-        snake_add_segment(s);
-    }
+
+    Food f;
+    food_move(&f);
 
     bool debug = false;
     int input = 0;
@@ -208,6 +226,15 @@ int main(void)
             if (updates % UPDATES_PER_MOVEMENT == 0)
             {
                 snake_move(s);
+                if (s->head->x == f.x && s->head->y == f.y)
+                {
+                    f.eaten = true;
+                    snake_add_segment(s);
+                }
+                if (f.eaten)
+                {
+                    food_move(&f);
+                }
                 movements++;
             }
             updates++;
@@ -221,9 +248,11 @@ int main(void)
             mvprintw(
                 0, 0,
                 "Frame Time: %dms\nLag: %dms\nUpdates: %d\nFrames: %d\nMovements: %d\n"
+                "Food: (%d, %d)\n"
                 "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)\n",
                 elapsed_ms, lag,
                 updates, frames, movements,
+                f.x, f.y,
                 COLS, LINES,
                 s->length,
                 s->head->x, s->head->y,
@@ -237,11 +266,12 @@ int main(void)
             mvaddch(current->y, current->x, s->symbol);
             if (debug)
             {
-                mvprintw((i%20)+9, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
+                mvprintw((i%20)+10, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
             }
             current = current->next;
             i++;
         }
+        mvaddch(f.y, f.x, f.symbol);
 
         refresh();
         frames++;
