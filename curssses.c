@@ -1,11 +1,19 @@
 #include <curses.h>
 #include <locale.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
-#define SECOND 1000000
-#define FPS 60
+#define SECOND 1000
+
+#define FPS          60
+#define MS_PER_FRAME (SECOND / FPS)
+
+#define UPDATES_PER_SECOND 100
+#define MS_PER_UPDATE      (SECOND / UPDATES_PER_SECOND)
+
+#define MOVEMENTS_PER_SECOND 10
+#define UPDATES_PER_MOVEMENT (UPDATES_PER_SECOND / MOVEMENTS_PER_SECOND)
 
 typedef enum
 {
@@ -67,6 +75,7 @@ void snake_add_segment(snake *s)
 
 void snake_move(snake *s)
 {
+    // move body
     segment *current = s->tail;
     while (current != s->head)
     {
@@ -75,6 +84,7 @@ void snake_move(snake *s)
         current = current->prev;
     }
 
+    // move head
     switch (s->d)
     {
         case LEFT:
@@ -113,6 +123,15 @@ void snake_move(snake *s)
     }
 }
 
+uint64_t get_current_time_ms()
+{
+    struct timespec current;
+    // TODO(amin): Fallback to other time sources when CLOCK_MONOTONIC is unavailable.
+    clock_gettime(CLOCK_MONOTONIC, &current);
+    uint64_t milliseconds = ((current.tv_sec * 1000000000) + current.tv_nsec) / 1000000;
+    return milliseconds;
+}
+
 int main(void)
 {
     setlocale(LC_ALL, "");
@@ -134,8 +153,19 @@ int main(void)
     }
 
     int input = 0;
+    int updates = 0;
+    int frames = 0;
+    int lag = 0;
+    uint64_t previous_ms = get_current_time_ms();
+
     while (1)
     {
+        frames++;
+        uint64_t current_ms = get_current_time_ms();
+        uint64_t elapsed_ms = current_ms - previous_ms;
+        previous_ms = current_ms;
+        lag += elapsed_ms;
+
         input = getch();
 
         switch (input)
@@ -166,6 +196,7 @@ int main(void)
                 nodelay(stdscr, FALSE);
                 getch();
                 nodelay(stdscr, TRUE);
+                previous_ms = get_current_time_ms();
             } break;
             case 'i':
             {
@@ -173,16 +204,28 @@ int main(void)
             } break;
         }
 
-        erase();
 
-        snake_move(s);
+        // TODO(amin): Test on slow computers.
+        // Have I sufficiently decoupled simulation speed from processor speed?
+        while (lag >= MS_PER_UPDATE)
+        {
+            if (updates % UPDATES_PER_MOVEMENT == 0)
+            {
+                snake_move(s);
+            }
+            updates++;
+            lag -= MS_PER_UPDATE;
+        }
+
+
+        erase();
 
         if (debug)
         {
             mvprintw(
                 0, 0,
-                "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)",
-                COLS, LINES, s->length, s->head->x, s->head->y, s->tail->x, s->tail->y);
+                "Screen: [%d, %d]\nSnake Length: %d\nHead: (%d, %d)\nTail: (%d, %d)\nFrame Time: %dms\nUpdates: %d\nFrames: %d",
+                COLS, LINES, s->length, s->head->x, s->head->y, s->tail->x, s->tail->y, elapsed_ms, updates, frames);
         }
 
         segment *current = s->head;
@@ -192,15 +235,24 @@ int main(void)
             mvaddch(current->y, current->x, s->symbol);
             if (debug)
             {
-                mvprintw((i%20)+4, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
+                mvprintw((i%20)+8, (i/20)*25, "Segment %d (%d, %d)", i+1, current->x, current->y);
             }
             current = current->next;
             i++;
         }
 
         refresh();
-        usleep(SECOND / FPS);
+        if (elapsed_ms <= MS_PER_FRAME)
+        {
+            usleep((MS_PER_FRAME - elapsed_ms) * SECOND);
+        }
+        // TODO(amin): Is this ever needed?
+        else
+        {
+            usleep(MS_PER_FRAME * SECOND);
+        }
     }
+
     clear();
     endwin();
     exit(0);
